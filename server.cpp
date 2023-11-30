@@ -81,8 +81,7 @@ int main(int argc, char *argv[])
         }
     }
     // Create the pipe name
-    char *pipe_name = zsys_sprintf("tcp://*:%d", port);
-    assert(pipe_name);
+    std::string pipe_name = string_format("tcp://*:%d", port);
     // Set up ADIO
     DeviceHandle adio_dev = nullptr;
     if (OpenDIO_aDIO(&adio_dev, adio_minor_num) != 0)
@@ -152,9 +151,8 @@ int main(int argc, char *argv[])
     }
     free(vmbcaminfos);
     // Setup ZMQ.
-    zsock_t *pipe = zsock_new_rep(pipe_name);
+    zsock_t *pipe = zsock_new_rep(pipe_name.c_str());
     assert(pipe);
-    zstr_free(&pipe_name);
     zpoller_t *poller = zpoller_new(pipe, NULL);
     assert(poller);
     // Loop, waiting for ZMQ commands and performing them as necessary.
@@ -170,7 +168,7 @@ int main(int argc, char *argv[])
         {
             continue;
         }
-        NetPacket packet = json(message);
+        NetPacket packet = json::parse(message);
         zstr_free(&message);
 
         packet.retargs.clear();                          // clear return arguments
