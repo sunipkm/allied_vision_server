@@ -366,12 +366,7 @@ int main(int argc, char *argv[])
                     }
                     case CommandNames::adio_bit:
                     {
-                        if (packet.arguments.size() != 1)
-                        {
-                            err = VmbErrorWrongType;
-                            break;
-                        }
-                        long arg1l = atol(packet.arguments[0].c_str());
+                        long arg1l = atol(argument);
                         image_cam.adio_bit = arg1l;
                         reply.push_back(std::to_string(arg1l));
                         break;
