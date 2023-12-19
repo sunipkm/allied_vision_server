@@ -150,6 +150,8 @@ int main(int argc, char *argv[])
         imagecams.insert(std::pair<uint32_t, ImageCam>(hash, ImageCam(caminfo, adio_dev)));
     }
     free(vmbcaminfos);
+    // Capture time limit
+    int64_t capture_timelim = 5000; // milliseconds
     // Setup ZMQ.
     zsock_t *pipe = zsock_new_rep(pipe_name.c_str());
     assert(pipe);
@@ -159,6 +161,15 @@ int main(int argc, char *argv[])
     while (!done)
     {
         zsock_t *which = (zsock_t *)zpoller_wait(poller, 1000); // wait a second
+        // here we have returned, either for a timeout or because we have a message
+        int64_t currtime = zclock_mono();
+        for (auto &image_cam : imagecams)
+        {
+            if (image_cam.second.running() && image_cam.second.capture_time(currtime) > capture_timelim)
+            {
+                image_cam.second.stop_capture();
+            }
+        }
         if (which == NULL)
         {
             continue;
@@ -166,6 +177,9 @@ int main(int argc, char *argv[])
         char *message = zstr_recv(which);
         if (message == NULL)
         {
+            char *ident = zsock_identity(which);
+            zsys_info("Client disconnected: %s", ident);
+            zstr_free(&ident);
             continue;
         }
         NetPacket packet = json::parse(message);
@@ -178,6 +192,18 @@ int main(int argc, char *argv[])
         if (packet.cmd_type == "quit")
         {
             done = 1;
+        }
+        else if (packet.cmd_type == "status") // should be sent every second by client if idle
+        {
+            // status
+            std::vector<std::string> reply;
+            for (auto &image_cam : imagecams)
+            {
+                reply.push_back(std::to_string(image_cam.first));
+                reply.push_back(image_cam.second.get_info().idstr);
+                reply.push_back(image_cam.second.running() ? "1" : "0");
+            }
+            packet.retargs = reply;
         }
         else if (packet.cmd_type == "list")
         {
@@ -193,6 +219,7 @@ int main(int argc, char *argv[])
             for (auto &image_cam : imagecams)
             {
                 err = image_cam.second.start_capture();
+                zsys_info("start_capture_all (%s): %s", image_cam.second.get_info().idstr, allied_strerr(err));
                 if (err != VmbErrorSuccess)
                 {
                     break;
@@ -205,6 +232,7 @@ int main(int argc, char *argv[])
             for (auto &image_cam : imagecams)
             {
                 err = image_cam.second.stop_capture();
+                zsys_info("stop_capture_all (%s): %s", image_cam.second.get_info().idstr, allied_strerr(err));
                 if (err != VmbErrorSuccess)
                 {
                     break;
@@ -217,10 +245,12 @@ int main(int argc, char *argv[])
             {
                 ImageCam image_cam = imagecams.at(chash);
                 err = image_cam.start_capture(); // do this for specific camera id
+                zsys_info("start_capture (%s): %s", image_cam.get_info().idstr, allied_strerr(err));
             }
             catch (const std::out_of_range &oor)
             {
                 err = VmbErrorNotFound;
+                zsys_info("start_capture (%s): %s", std::to_string(chash), allied_strerr(err));
             }
         }
         else if (packet.cmd_type == "stop_capture")
@@ -229,10 +259,12 @@ int main(int argc, char *argv[])
             {
                 ImageCam image_cam = imagecams.at(chash);
                 err = image_cam.stop_capture(); // do this for specific camera id
+                zsys_info("stop_capture (%s): %s", image_cam.get_info().idstr, allied_strerr(err));
             }
             catch (const std::out_of_range &oor)
             {
                 err = VmbErrorNotFound;
+                zsys_info("stop_capture (%s): %s", std::to_string(chash), allied_strerr(err));
             }
         }
         else if (packet.cmd_type == "get")
@@ -254,6 +286,7 @@ int main(int argc, char *argv[])
                 case CommandNames::frame_size:
                 {
                     uint32_t fsize = allied_get_frame_size(image_cam.handle);
+                    zsys_info("get (%s): frame_size -> %d", image_cam.get_info().idstr, fsize);
                     reply.push_back(std::to_string(fsize));
                     break;
                 }
@@ -261,6 +294,7 @@ int main(int argc, char *argv[])
                 {
                     VmbInt64_t width = 0, height = 0;
                     err = allied_get_sensor_size(image_cam.handle, &width, &height);
+                    zsys_info("get (%s): sensor_size -> %ld x %ld", image_cam.get_info().idstr, width, height);
                     reply.push_back(std::to_string(width));
                     reply.push_back(std::to_string(height));
                     break;
@@ -269,6 +303,7 @@ int main(int argc, char *argv[])
                 {
                     VmbInt64_t width = 0, height = 0;
                     err = allied_get_image_size(image_cam.handle, &width, &height);
+                    zsys_info("get (%s): image_size -> %ld x %ld", image_cam.get_info().idstr, width, height);
                     reply.push_back(std::to_string(width));
                     reply.push_back(std::to_string(height));
                     break;
@@ -277,12 +312,14 @@ int main(int argc, char *argv[])
                 {
                     VmbInt64_t width = 0, height = 0;
                     err = allied_get_image_ofst(image_cam.handle, &width, &height);
+                    zsys_info("get (%s): image_ofst -> %ld x %ld", image_cam.get_info().idstr, width, height);
                     reply.push_back(std::to_string(width));
                     reply.push_back(std::to_string(height));
                     break;
                 }
                 case CommandNames::adio_bit:
                 {
+                    zsys_info("get (%s): adio_bit", image_cam.get_info().idstr);
                     reply.push_back(std::to_string(image_cam.adio_bit));
                     break;
                 }
@@ -290,13 +327,20 @@ int main(int argc, char *argv[])
                 {
                     VmbInt64_t vmin = 0, vmax = 0;
                     err = allied_get_throughput_limit_range(image_cam.handle, &vmin, &vmax, NULL);
+                    zsys_info("get (%s): throughput_limit_range -> %ld, %ld", image_cam.get_info().idstr, vmin, vmax);
                     reply.push_back(std::to_string(vmin));
                     reply.push_back(std::to_string(vmax));
                     break;
                 }
                 case CommandNames::camera_info:
                 {
+                    zsys_info("get (%s): camera_info", image_cam.get_info().idstr);
                     reply.push_back(std::to_string(image_cam.get_info()));
+                }
+                case CommandNames::capture_maxlen:
+                {
+                    reply.push_back(std::to_string(capture_timelim));
+                    break;
                 }
                 default:
                 {
@@ -343,8 +387,10 @@ int main(int argc, char *argv[])
                         }
                         VmbInt64_t arg1l = atol(packet.arguments[0].c_str());
                         VmbInt64_t arg2l = atol(packet.arguments[1].c_str());
+                        zsys_info("set (%s): image_size -> %ld x %ld", image_cam.get_info().idstr, arg1l, arg2l);
                         err = allied_set_image_size(image_cam.handle, arg1l, arg2l);
                         err = allied_get_image_size(image_cam.handle, &arg1l, &arg2l);
+                        zsys_info("set (%s): image_size = %ld x %ld", image_cam.get_info().idstr, arg1l, arg2l);
                         reply.push_back(std::to_string(arg1l));
                         reply.push_back(std::to_string(arg2l));
                         break;
@@ -358,8 +404,10 @@ int main(int argc, char *argv[])
                         }
                         VmbInt64_t arg1l = atol(packet.arguments[0].c_str());
                         VmbInt64_t arg2l = atol(packet.arguments[1].c_str());
+                        zsys_info("set (%s): image_ofst -> %ld x %ld", image_cam.get_info().idstr, arg1l, arg2l);
                         err = allied_set_image_ofst(image_cam.handle, arg1l, arg2l);
                         err = allied_get_image_ofst(image_cam.handle, &arg1l, &arg2l);
+                        zsys_info("set (%s): image_ofst = %ld x %ld", image_cam.get_info().idstr, arg1l, arg2l);
                         reply.push_back(std::to_string(arg1l));
                         reply.push_back(std::to_string(arg2l));
                         break;
@@ -368,6 +416,20 @@ int main(int argc, char *argv[])
                     {
                         long arg1l = atol(argument);
                         image_cam.adio_bit = arg1l;
+                        zsys_info("set (%s): adio_bit = %s", image_cam.get_info().idstr, image_cam.adio_bit);
+                        reply.push_back(std::to_string(arg1l));
+                        break;
+                    }
+                    case CommandNames::capture_maxlen:
+                    {
+                        long arg1l = atol(argument);
+                        if (arg1l < 1000)
+                        {
+                            zsys_warning("Capture time limit too low, setting to 1000 ms.");
+                            arg1l = 1000;
+                        }
+                        capture_timelim = arg1l;
+                        zsys_info("set: capture_maxlen = %ld", capture_timelim);
                         reply.push_back(std::to_string(arg1l));
                         break;
                     }

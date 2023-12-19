@@ -1,6 +1,7 @@
 #pragma once
 
 #include <assert.h>
+#include <zclock.h>
 #include "meb_print.h"
 #include "alliedcam.h"
 #include "aDIO_library.h"
@@ -137,6 +138,7 @@ class ImageCam
     bool capturing;
     DeviceHandle adio_hdl = nullptr;
     CameraInfo info;
+    int64_t capture_start_time = -1;
 
 public:
     int adio_bit = -1;
@@ -281,9 +283,23 @@ public:
         opened = false;
     }
 
-    bool running()
+    bool running() const
     {
         return capturing;
+    }
+
+    int64_t capture_time() const
+    {
+        if (capture_start_time < 0)
+            return -1;
+        return zclock_mono() - capture_start_time;
+    }
+
+    int64_t capture_time(int64_t tnow) const
+    {
+        if (capture_start_time < 0)
+            return -1;
+        return tnow - capture_start_time;
     }
 
     VmbError_t start_capture()
@@ -292,6 +308,14 @@ public:
         if (handle != nullptr && !capturing)
         {
             err = allied_start_capture(handle, &Callback, (void *)this); // set the callback here
+        }
+        if (err == VmbErrorSuccess)
+        {
+            capture_start_time = zclock_mono();
+        }
+        else
+        {
+            capture_start_time = -1;
         }
         return err;
     }
@@ -308,6 +332,7 @@ public:
                 WriteBit_aDIO(adio_hdl, 0, adio_bit, this->state);
             }
         }
+        capture_start_time = -1;
         return err;
     }
 };
