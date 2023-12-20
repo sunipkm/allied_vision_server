@@ -8,7 +8,7 @@ import warnings
 import zmq
 import signal
 import zmq.utils.monitor as zmonitor
-from datetime import datetime
+from datetime import datetime, timedelta
 import enum
 from result import Result, Ok, Err
 # %% Commands
@@ -326,7 +326,6 @@ class Camera:
             List[str]: trigger source names.
         """
         res = self.get(Commands.TrigLineModeSrc)
-        print(res)
         if res.is_err():
             return []
         return res.unwrap()
@@ -347,6 +346,54 @@ class Camera:
     def trigger_src(self, value: str):
         self.set(Commands.TrigLineSrc, [value])
 
+    @property
+    def exposure(self)->timedelta:
+        """Get the exposure time
+
+        Returns:
+            Timedelta: exposure time
+        """
+        res = self.get(Commands.ExposureUs)
+        if res.is_err():
+            return timedelta(0)
+        return timedelta(microseconds=float(res.unwrap()[0]))
+    
+    @exposure.setter
+    def exposure(self, value: timedelta):
+        self.set(Commands.ExposureUs, [value.total_seconds()*1e6])
+
+    @property
+    def framerate_auto(self) -> Optional[bool]:
+        """Get the auto framerate setting
+
+        Returns:
+            bool: True if auto framerate is enabled
+        """
+        res = self.get(Commands.AcqFrameRateAuto)
+        if res.is_err():
+            return None
+        return res.unwrap()[0] == 'True'
+    
+    @framerate_auto.setter
+    def framerate_auto(self, value: bool):
+        self.set(Commands.AcqFrameRateAuto, [str(value)])
+
+    @property
+    def framerate(self) -> float:
+        """Get the framerate
+
+        Returns:
+            float: framerate
+        """
+        res = self.get(Commands.AcqFramerate)
+        if res.is_err():
+            return 0
+        return float(res.unwrap()[0])
+    
+    @framerate.setter
+    def framerate(self, value: float):
+        self.set(Commands.AcqFramerate, [value])
+    
 # %%
 with CameraConnection() as cam_man:
     print(cam_man.cameras)
@@ -365,5 +412,12 @@ with CameraConnection() as cam_man:
     cam.trigger_mode = 'Output'
     cam.trigger_src = 'ExposureActive'
     print(cam.trigger_src)
+    print(cam.exposure)
+    cam.exposure = timedelta(microseconds=100)
+    print(cam.exposure)
+    print(cam.framerate_auto)
+    cam.framerate_auto = True
+    print(cam.framerate_auto)
+    print(cam.framerate)
 
 # %%
