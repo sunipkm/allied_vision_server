@@ -110,6 +110,8 @@ class Camera:
 
 
 class CameraConnection:
+    """Establish connection to a camera server. Allows for camera enumeration, and property setting/getting.
+    """
     def __init__(self, ctx: Optional[zmq.Context] = None, cam_id: Optional[str] = None, host: str = 'localhost', port: int = 5555, quit_on_close: bool = False):
         self._ctx = ctx
         self._cam_id = '' if cam_id is None else cam_id
@@ -207,7 +209,7 @@ class CameraConnection:
         if retcode != ReturnCodes.VmbErrorSuccess:
             return Err(retcode)
         return Ok(None)
-    
+
     def set(self, camera_id: str, command: Commands, arguments: List[Any]) -> Result[None, ReturnCodes]:
         if camera_id not in self._cameras:
             return None
@@ -224,7 +226,7 @@ class CameraConnection:
         if packet['retcode'] != ReturnCodes.VmbErrorSuccess:
             return Err(ReturnCodes(packet['retcode']))
         return Ok(packet['retargs'])
-    
+
     def get(self, camera_id: str, command: Commands) -> Result[List[str], ReturnCodes]:
         if camera_id not in self._cameras:
             return None
@@ -243,10 +245,13 @@ class CameraConnection:
 
     @capture_maxlen.setter
     def capture_maxlen(self, value: timedelta):
-        self.set_nocheck(self._cameras[0], Commands.CaptureMaxLen, [value.total_seconds()*1e3])
+        self.set_nocheck(self._cameras[0], Commands.CaptureMaxLen, [
+                         value.total_seconds()*1e3])
 
 
 class Camera:
+    """Camera object for setting/getting camera properties.
+    """
     def __init__(self, parent: CameraConnection, cam_id: str):
         self._parent = parent
         self._cam_id = cam_id
@@ -292,6 +297,10 @@ class Camera:
         if res.is_err():
             return []
         return list(map(int, res.unwrap()))
+    
+    @image_size.setter
+    def image_size(self, value: List[int]):
+        self.set(Commands.ImageSize, value)
 
     @property
     def image_ofst(self) -> List[int]:
@@ -304,6 +313,10 @@ class Camera:
         if res.is_err():
             return []
         return list(map(int, res.unwrap()))
+    
+    @image_ofst.setter
+    def image_ofst(self, value: List[int]):
+        self.set(Commands.ImageOfst, value)
 
     @property
     def trigger_line(self) -> str:
@@ -510,6 +523,45 @@ class Camera:
         if res.is_err():
             return []
         return list(map(int, res.unwrap()))
+    
+    def max_exposure(self, retry: int = 50) -> timedelta:
+        """Get the maximum exposure time for a set framerate.
+
+        Args:
+            retry (int, optional): Number of retries to find the maximum exposure time. Defaults to 50.
+
+        Returns:
+            timedelta: maximum exposure time
+        """
+        auto = self.framerate_auto
+
+        fps_target = fps = self.framerate
+        exposure_max = timedelta(microseconds=50)
+        increment = timedelta(seconds=1/fps) * 0.25
+        self.exposure = exposure_max
+        exposure_prev = timedelta(seconds=1/fps)
+        while abs((exposure_prev - exposure_max).total_seconds()) > 50e-6 and retry > 0 and increment.total_seconds() > 10e-6:
+            exposure_prev = exposure_max
+            while self.framerate >= fps_target:
+                exposure_max += increment
+                self.exposure = exposure_max
+                exposure_max = self.exposure
+                if not auto: self.framerate = fps_target
+                print(f'{retry}> Increment: FPS: {self.framerate}, Exposure: {exposure_max}')
+                retry -= 1
+            # flip!
+            increment /= 2
+            while self.framerate < fps_target:
+                exposure_max -= increment
+                self.exposure = exposure_max
+                exposure_max = self.exposure
+                if not auto: self.framerate = fps_target
+                print(f'{retry}> Decrement: FPS: {self.framerate}, Exposure: {exposure_max}')
+                retry -= 1
+            # flip!
+            increment /= 2
+        
+        return exposure_max
 
 
 # %%
@@ -545,5 +597,24 @@ with CameraConnection() as cam_man:
     print(cam.sensor_bit_depths)
     print(cam.througput_limit)
     print(cam.througput_limit_range)
+    cam.image_size = [256, 256]
+    print(cam.image_size)
+    print(cam.framerate)
+    maxexp = cam.max_exposure()
+    print(cam.framerate)
+    print(maxexp)
+    cam.exposure = maxexp
+    print(cam.exposure)
+    print(cam.framerate)
+
+    cam.framerate_auto = False
+    cam.framerate = 100
+    print(cam.framerate)
+    maxexp = cam.max_exposure()
+    print(cam.framerate)
+    print(maxexp)
+    cam.exposure = maxexp
+    print(cam.exposure)
+    print(cam.framerate)
 
 # %%
