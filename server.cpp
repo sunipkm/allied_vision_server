@@ -313,6 +313,10 @@ int main(int argc, char *argv[])
                     GET_CASE_DBL(acq_framerate)
                     GET_CASE_BOOL(acq_framerate_auto)
                     GET_CASE_INT(throughput_limit)
+                    GET_CASE_LIST(trigline_src_list)
+                    GET_CASE_LIST(triglines_list)
+                    GET_CASE_LIST(image_format_list)
+                    GET_CASE_LIST(sensor_bit_depth_list)
                 case CommandNames::frame_size:
                 {
                     uint32_t fsize = allied_get_frame_size(image_cam.handle);
@@ -369,20 +373,8 @@ int main(int argc, char *argv[])
                 }
                 case CommandNames::capture_maxlen:
                 {
+                    ZSYS_INFO("get: capture_maxlen: %ld", capture_timelim);
                     reply.push_back(std::to_string(capture_timelim));
-                    break;
-                }
-                case CommandNames::trigline_mode_src_list:
-                {
-                    const char **srcs = nullptr;
-                    VmbUint32_t nsrcs = 0;
-                    err = allied_get_trigline_src_list(image_cam.handle, (char ***) &srcs, NULL, &nsrcs);
-                    ZSYS_INFO("get (%s): trigline_mode_src_list -> %d (%s)", image_cam.get_info().idstr.c_str(), nsrcs, allied_strerr(err));
-                    for (VmbUint32_t i = 0; i < nsrcs; i++)
-                    {
-                        reply.push_back(srcs[i]);
-                    }
-                    allied_free_list((char ***)&srcs);
                     break;
                 }
                 default:

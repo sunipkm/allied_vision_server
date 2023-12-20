@@ -20,7 +20,10 @@ enum CommandNames
     throughput_limit = 300,       // int
     throughput_limit_range = 301, // special
     camera_info = 302,            // special
-    trigline_mode_src_list = 303, // special
+    trigline_src_list = 303,      // special
+    triglines_list = 304,         // special
+    image_format_list = 305,      // special
+    sensor_bit_depth_list = 306,  // special
     adio_bit = 10,                // special
     capture_maxlen = 400,         // special, int, time in seconds
 };
@@ -153,4 +156,19 @@ namespace std
         ZSYS_INFO("get (%s): %s = %d", image_cam.get_info().idstr.c_str(), #NAME, (int)garg); \
         reply.push_back(garg == VmbBoolTrue ? "True" : "False");                              \
         break;                                                                                \
+    }
+
+#define GET_CASE_LIST(NAME)                                                                                        \
+    case CommandNames::NAME:                                                                                       \
+    {                                                                                                              \
+        const char **srcs = nullptr;                                                                               \
+        VmbUint32_t nsrcs = 0;                                                                                     \
+        err = allied_get_##NAME(image_cam.handle, (char ***)&srcs, NULL, &nsrcs);                                  \
+        ZSYS_INFO("get (%s): " #NAME "-> %d (%s)", image_cam.get_info().idstr.c_str(), nsrcs, allied_strerr(err)); \
+        for (VmbUint32_t i = 0; i < nsrcs; i++)                                                                    \
+        {                                                                                                          \
+            reply.push_back(srcs[i]);                                                                              \
+        }                                                                                                          \
+        allied_free_list((char ***)&srcs);                                                                         \
+        break;                                                                                                     \
     }

@@ -31,7 +31,10 @@ class Commands(enum.IntEnum):
     ThroughputLimit = 300,       # int
     ThroughputLimitRange = 301,  # special
     CameraInfo = 302,            # special
-    TrigLineModeSrc = 303,       # special
+    TrigLineSrcs = 303,      # special
+    TrigLines = 304,             # special
+    ImageFormats = 305,          # special
+    SensorBitDepths = 306,       # special
     ADIOBit = 10,                # special
     CaptureMaxLen = 400,         # special, int, time in seconds
 
@@ -192,9 +195,7 @@ class CameraConnection:
             return Err(ReturnCodes(packet['retcode']))
         return Ok(packet['retargs'])
 
-    def set(self, camera_id: str, command: Commands, arguments: List[Any]) -> Result[None, ReturnCodes]:
-        if camera_id not in self._cameras:
-            return None
+    def set_nocheck(self, camera_id: str, command: Commands, arguments: List[Any]) -> Result[None, ReturnCodes]:
         self._packet['cmd_type'] = 'set'
         self._packet['cam_id'] = camera_id
         self._packet['command'] = command.value
@@ -206,10 +207,13 @@ class CameraConnection:
         if retcode != ReturnCodes.VmbErrorSuccess:
             return Err(retcode)
         return Ok(None)
-
-    def get(self, camera_id: str, command: Commands) -> Result[List[str], ReturnCodes]:
+    
+    def set(self, camera_id: str, command: Commands, arguments: List[Any]) -> Result[None, ReturnCodes]:
         if camera_id not in self._cameras:
             return None
+        return self.set_nocheck(camera_id, command, arguments)
+
+    def get_nocheck(self, camera_id: str, command: Commands) -> Result[List[str], ReturnCodes]:
         self._packet['cmd_type'] = 'get'
         self._packet['cam_id'] = camera_id
         self._packet['command'] = command.value
@@ -220,9 +224,26 @@ class CameraConnection:
         if packet['retcode'] != ReturnCodes.VmbErrorSuccess:
             return Err(ReturnCodes(packet['retcode']))
         return Ok(packet['retargs'])
+    
+    def get(self, camera_id: str, command: Commands) -> Result[List[str], ReturnCodes]:
+        if camera_id not in self._cameras:
+            return None
+        return self.get_nocheck(camera_id, command)
 
     def get_camera(self, camera_id: str) -> Camera:
         return Camera(self, camera_id)
+
+    @property
+    def capture_maxlen(self) -> timedelta:
+        res = self.get_nocheck(self._cameras[0], Commands.CaptureMaxLen)
+        print(res)
+        if res.is_err():
+            return timedelta(0)
+        return timedelta(milliseconds=float(res.unwrap()[0]))
+
+    @capture_maxlen.setter
+    def capture_maxlen(self, value: timedelta):
+        self.set_nocheck(self._cameras[0], Commands.CaptureMaxLen, [value.total_seconds()*1e3])
 
 
 class Camera:
@@ -301,6 +322,18 @@ class Camera:
         self.set(Commands.TrigLine, [value])
 
     @property
+    def trigger_lines(self) -> List[str]:
+        """Get the available trigger lines
+
+        Returns:
+            List[str]: trigger line names
+        """
+        res = self.get(Commands.TrigLines)
+        if res.is_err():
+            return []
+        return res.unwrap()
+
+    @property
     def trigger_mode(self) -> str:
         """Get the mode of the selected trigger line
 
@@ -325,7 +358,7 @@ class Camera:
         Returns:
             List[str]: trigger source names.
         """
-        res = self.get(Commands.TrigLineModeSrc)
+        res = self.get(Commands.TrigLineSrcs)
         if res.is_err():
             return []
         return res.unwrap()
@@ -394,6 +427,90 @@ class Camera:
     def framerate(self, value: float):
         self.set(Commands.AcqFramerate, [value])
 
+    @property
+    def image_format(self) -> str:
+        """Get the image format
+
+        Returns:
+            str: image format
+        """
+        res = self.get(Commands.ImageFormat)
+        if res.is_err():
+            return ''
+        return res.unwrap()[0]
+
+    @image_format.setter
+    def image_format(self, value: str):
+        self.set(Commands.ImageFormat, [value])
+
+    @property
+    def image_formats(self) -> List[str]:
+        """Get the available image formats
+
+        Returns:
+            List[str]: image formats
+        """
+        res = self.get(Commands.ImageFormats)
+        if res.is_err():
+            return []
+        return res.unwrap()
+
+    @property
+    def sensor_bit_depth(self) -> str:
+        """Get the sensor bit depth
+
+        Returns:
+            str: sensor bit depth
+        """
+        res = self.get(Commands.SensorBitDepth)
+        if res.is_err():
+            return ''
+        return res.unwrap()[0]
+
+    @sensor_bit_depth.setter
+    def sensor_bit_depth(self, value: str):
+        self.set(Commands.SensorBitDepth, [value])
+
+    @property
+    def sensor_bit_depths(self) -> List[str]:
+        """Get the available sensor bit depths
+
+        Returns:
+            List[str]: sensor bit depths
+        """
+        res = self.get(Commands.SensorBitDepths)
+        if res.is_err():
+            return []
+        return res.unwrap()
+
+    @property
+    def througput_limit(self) -> int:
+        """Get the throughput limit
+
+        Returns:
+            int: throughput limit
+        """
+        res = self.get(Commands.ThroughputLimit)
+        if res.is_err():
+            return 0
+        return int(res.unwrap()[0])
+
+    @througput_limit.setter
+    def througput_limit(self, value: int):
+        self.set(Commands.ThroughputLimit, [value])
+
+    @property
+    def througput_limit_range(self) -> List[int]:
+        """Get the throughput limit range
+
+        Returns:
+            List[int]: throughput limit range
+        """
+        res = self.get(Commands.ThroughputLimitRange)
+        if res.is_err():
+            return []
+        return list(map(int, res.unwrap()))
+
 
 # %%
 with CameraConnection() as cam_man:
@@ -401,12 +518,14 @@ with CameraConnection() as cam_man:
     if len(cam_man.cameras) == 0:
         sys.exit(0)
     print(cam_man.status)
+    print(cam_man.capture_maxlen)
     cam = cam_man.get_camera(cam_man.cameras[0])
     print(cam.status)
     print(cam.sensor_size)
     print(cam.image_size)
     print(cam.image_ofst)
     print(cam.trigger_line)
+    print(cam.trigger_lines)
     print(cam.trigger_mode)
     print(cam.trigger_src)
     print(cam.trigger_srcs)
@@ -420,5 +539,11 @@ with CameraConnection() as cam_man:
     cam.framerate_auto = True
     print(cam.framerate_auto)
     print(cam.framerate)
+    print(cam.image_format)
+    print(cam.image_formats)
+    print(cam.sensor_bit_depth)
+    print(cam.sensor_bit_depths)
+    print(cam.througput_limit)
+    print(cam.througput_limit_range)
 
 # %%
