@@ -231,23 +231,23 @@ class Camera:
         self._cam_id = cam_id
 
     @property
-    def status(self)->Result[List[str], ReturnCodes]:
+    def status(self) -> Result[List[str], ReturnCodes]:
         self._parent._packet['cmd_type'] = 'status'
         self._parent._packet['cam_id'] = self._cam_id  # for all
-        self._parent._sock.send(json.dumps(self._parent._packet).encode('utf-8'))
+        self._parent._sock.send(json.dumps(
+            self._parent._packet).encode('utf-8'))
         reply = self._parent._sock.recv()
         packet = json.loads(reply)
         if packet['retcode'] != ReturnCodes.VmbErrorSuccess:
             return Err(ReturnCodes(packet['retcode']))
         return Ok(packet['retargs'])
-    
+
     def set(self, command: Commands, arguments: List[Any]) -> Result[None, ReturnCodes]:
         return self._parent.set(self._cam_id, command, arguments)
-    
+
     def get(self, command: Commands) -> Result[List[str], ReturnCodes]:
         return self._parent.get(self._cam_id, command)
 
-    
     @property
     def sensor_size(self) -> List[int]:
         """Get the sensor size in pixels
@@ -259,7 +259,7 @@ class Camera:
         if res.is_err():
             return []
         return list(map(int, res.unwrap()))
-    
+
     @property
     def image_size(self) -> List[int]:
         """Get the image size in pixels
@@ -271,7 +271,7 @@ class Camera:
         if res.is_err():
             return []
         return list(map(int, res.unwrap()))
-    
+
     @property
     def image_ofst(self) -> List[int]:
         """Get the image offset in pixels
@@ -283,7 +283,7 @@ class Camera:
         if res.is_err():
             return []
         return list(map(int, res.unwrap()))
-    
+
     @property
     def trigger_line(self) -> str:
         """Get the selected trigger line
@@ -295,13 +295,13 @@ class Camera:
         if res.is_err():
             return ''
         return res.unwrap()[0]
-    
+
     @trigger_line.setter
     def trigger_line(self, value: str):
         self.set(Commands.TrigLine, [value])
 
     @property
-    def trigger_mode(self)->str:
+    def trigger_mode(self) -> str:
         """Get the mode of the selected trigger line
 
         Returns:
@@ -311,7 +311,7 @@ class Camera:
         if res.is_err():
             return ''
         return res.unwrap()[0]
-    
+
     @trigger_mode.setter
     def trigger_mode(self, mode: str):
         if mode not in ['Input', 'Output']:
@@ -341,13 +341,13 @@ class Camera:
         if res.is_err():
             return ''
         return res.unwrap()[0]
-    
+
     @trigger_src.setter
     def trigger_src(self, value: str):
         self.set(Commands.TrigLineSrc, [value])
 
     @property
-    def exposure(self)->timedelta:
+    def exposure(self) -> timedelta:
         """Get the exposure time
 
         Returns:
@@ -357,7 +357,7 @@ class Camera:
         if res.is_err():
             return timedelta(0)
         return timedelta(microseconds=float(res.unwrap()[0]))
-    
+
     @exposure.setter
     def exposure(self, value: timedelta):
         self.set(Commands.ExposureUs, [value.total_seconds()*1e6])
@@ -373,7 +373,7 @@ class Camera:
         if res.is_err():
             return None
         return res.unwrap()[0] == 'True'
-    
+
     @framerate_auto.setter
     def framerate_auto(self, value: bool):
         self.set(Commands.AcqFrameRateAuto, [str(value)])
@@ -389,11 +389,12 @@ class Camera:
         if res.is_err():
             return 0
         return float(res.unwrap()[0])
-    
+
     @framerate.setter
     def framerate(self, value: float):
         self.set(Commands.AcqFramerate, [value])
-    
+
+
 # %%
 with CameraConnection() as cam_man:
     print(cam_man.cameras)
