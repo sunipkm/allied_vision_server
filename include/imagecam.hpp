@@ -139,6 +139,9 @@ class ImageCam
     DeviceHandle adio_hdl = nullptr;
     CameraInfo info;
     int64_t capture_start_time = -1;
+    uint64_t frames = 0;
+
+    ImageCam(const ImageCam &other) = delete;
 
 public:
     int adio_bit = -1;
@@ -178,7 +181,7 @@ public:
         assert(user_data);
 
         ImageCam *self = (ImageCam *)user_data;
-
+        self->frames++;
         if (self->adio_hdl != nullptr && self->adio_bit >= 0)
         {
             self->state = ~self->state;
@@ -305,6 +308,7 @@ public:
     VmbError_t start_capture()
     {
         VmbError_t err = VmbErrorSuccess;
+        frames = 0;
         if (handle != nullptr && !capturing)
         {
             err = allied_start_capture(handle, &Callback, (void *)this); // set the callback here
@@ -312,6 +316,7 @@ public:
         if (err == VmbErrorSuccess)
         {
             capture_start_time = zclock_mono();
+            capturing = true;
         }
         else
         {
@@ -332,7 +337,13 @@ public:
                 WriteBit_aDIO(adio_hdl, 0, adio_bit, this->state);
             }
         }
+        capturing = false;
         capture_start_time = -1;
         return err;
+    }
+
+    uint64_t get_frames() const
+    {
+        return frames;
     }
 };

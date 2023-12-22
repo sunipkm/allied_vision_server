@@ -66,109 +66,137 @@ namespace std
     }
 }
 
-#define SET_CASE_STR(NAME)                                                                    \
-    case CommandNames::NAME:                                                                  \
-    {                                                                                         \
-        err = allied_set_##NAME(image_cam.handle, argument);                                  \
-        ZSYS_INFO("set (%s): %s -> %s", image_cam.get_info().idstr.c_str(), #NAME, argument); \
-        err = allied_get_##NAME(image_cam.handle, &argument);                                 \
-        ZSYS_INFO("set (%s): %s = %s", image_cam.get_info().idstr.c_str(), #NAME, argument);  \
-        reply.push_back(argument);                                                            \
-        break;                                                                                \
+#define SET_CASE_STR(NAME)                                                                                                  \
+    case CommandNames::NAME:                                                                                                \
+    {                                                                                                                       \
+        err = allied_set_##NAME(image_cam->handle, argument);                                                               \
+        ZSYS_INFO("set (%s): %s -> %s", image_cam->get_info().idstr.c_str(), #NAME, argument);                              \
+        err = allied_get_##NAME(image_cam->handle, &argument);                                                              \
+        if (err == VmbErrorSuccess)                                                                                         \
+        {                                                                                                                   \
+            ZSYS_INFO("set (%s): %s = %s", image_cam->get_info().idstr.c_str(), #NAME, argument);                           \
+        }                                                                                                                   \
+        else                                                                                                                \
+        {                                                                                                                   \
+            ZSYS_ERROR("set (%s): %s = %s (%s)", image_cam->get_info().idstr.c_str(), #NAME, argument, allied_strerr(err)); \
+        }                                                                                                                   \
+        reply.push_back(argument);                                                                                          \
+        break;                                                                                                              \
     }
 
-#define SET_CASE_INT(NAME)                                                                \
+#define SET_CASE_INT(NAME)                                                                                              \
+    case CommandNames::NAME:                                                                                            \
+    {                                                                                                                   \
+        VmbInt64_t arg = atol(argument);                                                                                \
+        err = allied_set_##NAME(image_cam->handle, arg);                                                                \
+        ZSYS_INFO("set (%s): %s -> %ld", image_cam->get_info().idstr.c_str(), #NAME, arg);                              \
+        err = allied_get_##NAME(image_cam->handle, &arg);                                                               \
+        if (err == VmbErrorSuccess)                                                                                     \
+        {                                                                                                               \
+            ZSYS_INFO("set (%s): %s = %ld", image_cam->get_info().idstr.c_str(), #NAME, arg);                           \
+        }                                                                                                               \
+        else                                                                                                            \
+        {                                                                                                               \
+            ZSYS_ERROR("set (%s): %s = %ld (%s)", image_cam->get_info().idstr.c_str(), #NAME, arg, allied_strerr(err)); \
+        }                                                                                                               \
+        reply.push_back(std::to_string(arg));                                                                           \
+        break;                                                                                                          \
+    }
+
+#define SET_CASE_DBL(NAME)                                                                                             \
+    case CommandNames::NAME:                                                                                           \
+    {                                                                                                                  \
+        double arg = atof(argument);                                                                                   \
+        err = allied_set_##NAME(image_cam->handle, arg);                                                               \
+        ZSYS_INFO("set (%s): %s -> %f", image_cam->get_info().idstr.c_str(), #NAME, arg);                              \
+        err = allied_get_##NAME(image_cam->handle, &arg);                                                              \
+        if (err == VmbErrorSuccess)                                                                                    \
+        {                                                                                                              \
+            ZSYS_INFO("set (%s): %s = %f", image_cam->get_info().idstr.c_str(), #NAME, arg);                           \
+        }                                                                                                              \
+        else                                                                                                           \
+        {                                                                                                              \
+            ZSYS_ERROR("set (%s): %s = %f (%s)", image_cam->get_info().idstr.c_str(), #NAME, arg, allied_strerr(err)); \
+        }                                                                                                              \
+        reply.push_back(string_format("%.6f", arg));                                                                   \
+        break;                                                                                                         \
+    }
+
+#define SET_CASE_BOOL(NAME)                                                                                            \
+    case CommandNames::NAME:                                                                                           \
+    {                                                                                                                  \
+        char *narg = strdup(argument);                                                                                 \
+        for (int i = 0; narg[i]; i++)                                                                                  \
+        {                                                                                                              \
+            narg[i] = tolower(narg[i]);                                                                                \
+        }                                                                                                              \
+        bool arg = streq(narg, "true");                                                                                \
+        err = allied_set_##NAME(image_cam->handle, arg);                                                               \
+        ZSYS_INFO("set (%s): %s -> %d", image_cam->get_info().idstr.c_str(), #NAME, arg);                              \
+        err = allied_get_##NAME(image_cam->handle, &arg);                                                              \
+        if (err == VmbErrorSuccess)                                                                                    \
+        {                                                                                                              \
+            ZSYS_INFO("set (%s): %s = %d", image_cam->get_info().idstr.c_str(), #NAME, arg);                           \
+        }                                                                                                              \
+        else                                                                                                           \
+        {                                                                                                              \
+            ZSYS_ERROR("set (%s): %s = %d (%s)", image_cam->get_info().idstr.c_str(), #NAME, arg, allied_strerr(err)); \
+        }                                                                                                              \
+        reply.push_back(arg ? "True" : "False");                                                                       \
+        break;                                                                                                         \
+    }
+
+#define GET_CASE_STR(NAME)                                                                \
     case CommandNames::NAME:                                                              \
     {                                                                                     \
-        VmbInt64_t arg = atol(argument);                                                  \
-        err = allied_set_##NAME(image_cam.handle, arg);                                   \
-        ZSYS_INFO("set (%s): %s -> %ld", image_cam.get_info().idstr.c_str(), #NAME, arg); \
-        err = allied_get_##NAME(image_cam.handle, &arg);                                  \
-        ZSYS_INFO("set (%s): %s = %ld", image_cam.get_info().idstr.c_str(), #NAME, arg);  \
-        reply.push_back(std::to_string(arg));                                             \
+        char *garg = (char *)"None";                                                      \
+        err = allied_get_##NAME(image_cam->handle, (const char **)&garg);                 \
+        ZSYS_INFO("get (%s): %s = %s", image_cam->get_info().idstr.c_str(), #NAME, garg); \
+        reply.push_back(garg);                                                            \
         break;                                                                            \
     }
 
-#define SET_CASE_DBL(NAME)                                                               \
-    case CommandNames::NAME:                                                             \
-    {                                                                                    \
-        double arg = atof(argument);                                                     \
-        err = allied_set_##NAME(image_cam.handle, arg);                                  \
-        ZSYS_INFO("set (%s): %s -> %f", image_cam.get_info().idstr.c_str(), #NAME, arg); \
-        err = allied_get_##NAME(image_cam.handle, &arg);                                 \
-        ZSYS_INFO("set (%s): %s = %f", image_cam.get_info().idstr.c_str(), #NAME, arg);  \
-        reply.push_back(string_format("%.6f", arg));                                     \
-        break;                                                                           \
+#define GET_CASE_DBL(NAME)                                                                  \
+    case CommandNames::NAME:                                                                \
+    {                                                                                       \
+        double garg;                                                                        \
+        err = allied_get_##NAME(image_cam->handle, &garg);                                  \
+        ZSYS_INFO("get (%s): %s = %.6f", image_cam->get_info().idstr.c_str(), #NAME, garg); \
+        reply.push_back(string_format("%.6f", garg));                                       \
+        break;                                                                              \
     }
 
-#define SET_CASE_BOOL(NAME)                                                              \
-    case CommandNames::NAME:                                                             \
-    {                                                                                    \
-        char *narg = strdup(argument);                                                   \
-        for (int i = 0; narg[i]; i++)                                                    \
-        {                                                                                \
-            narg[i] = tolower(narg[i]);                                                  \
-        }                                                                                \
-        bool arg = streq(narg, "true");                                                  \
-        err = allied_set_##NAME(image_cam.handle, arg);                                  \
-        ZSYS_INFO("set (%s): %s -> %d", image_cam.get_info().idstr.c_str(), #NAME, arg); \
-        err = allied_get_##NAME(image_cam.handle, &arg);                                 \
-        ZSYS_INFO("set (%s): %s = %d", image_cam.get_info().idstr.c_str(), #NAME, arg);  \
-        reply.push_back(arg ? "True" : "False");                                         \
-        break;                                                                           \
-    }
-
-#define GET_CASE_STR(NAME)                                                               \
-    case CommandNames::NAME:                                                             \
-    {                                                                                    \
-        char *garg = (char *)"None";                                                     \
-        err = allied_get_##NAME(image_cam.handle, (const char **)&garg);                 \
-        ZSYS_INFO("get (%s): %s = %s", image_cam.get_info().idstr.c_str(), #NAME, garg); \
-        reply.push_back(garg);                                                           \
-        break;                                                                           \
-    }
-
-#define GET_CASE_DBL(NAME)                                                                 \
+#define GET_CASE_INT(NAME)                                                                 \
     case CommandNames::NAME:                                                               \
     {                                                                                      \
-        double garg;                                                                       \
-        err = allied_get_##NAME(image_cam.handle, &garg);                                  \
-        ZSYS_INFO("get (%s): %s = %.6f", image_cam.get_info().idstr.c_str(), #NAME, garg); \
-        reply.push_back(string_format("%.6f", garg));                                      \
+        VmbInt64_t garg;                                                                   \
+        err = allied_get_##NAME(image_cam->handle, &garg);                                 \
+        ZSYS_INFO("get (%s): %s = %ld", image_cam->get_info().idstr.c_str(), #NAME, garg); \
+        reply.push_back(std::to_string(garg));                                             \
         break;                                                                             \
     }
 
-#define GET_CASE_INT(NAME)                                                                \
-    case CommandNames::NAME:                                                              \
-    {                                                                                     \
-        VmbInt64_t garg;                                                                  \
-        err = allied_get_##NAME(image_cam.handle, &garg);                                 \
-        ZSYS_INFO("get (%s): %s = %ld", image_cam.get_info().idstr.c_str(), #NAME, garg); \
-        reply.push_back(std::to_string(garg));                                            \
-        break;                                                                            \
+#define GET_CASE_BOOL(NAME)                                                                    \
+    case CommandNames::NAME:                                                                   \
+    {                                                                                          \
+        VmbBool_t garg;                                                                        \
+        err = allied_get_##NAME(image_cam->handle, &garg);                                     \
+        ZSYS_INFO("get (%s): %s = %d", image_cam->get_info().idstr.c_str(), #NAME, (int)garg); \
+        reply.push_back(garg == VmbBoolTrue ? "True" : "False");                               \
+        break;                                                                                 \
     }
 
-#define GET_CASE_BOOL(NAME)                                                                   \
-    case CommandNames::NAME:                                                                  \
-    {                                                                                         \
-        VmbBool_t garg;                                                                       \
-        err = allied_get_##NAME(image_cam.handle, &garg);                                     \
-        ZSYS_INFO("get (%s): %s = %d", image_cam.get_info().idstr.c_str(), #NAME, (int)garg); \
-        reply.push_back(garg == VmbBoolTrue ? "True" : "False");                              \
-        break;                                                                                \
-    }
-
-#define GET_CASE_LIST(NAME)                                                                                        \
-    case CommandNames::NAME:                                                                                       \
-    {                                                                                                              \
-        const char **srcs = nullptr;                                                                               \
-        VmbUint32_t nsrcs = 0;                                                                                     \
-        err = allied_get_##NAME(image_cam.handle, (char ***)&srcs, NULL, &nsrcs);                                  \
-        ZSYS_INFO("get (%s): " #NAME "-> %d (%s)", image_cam.get_info().idstr.c_str(), nsrcs, allied_strerr(err)); \
-        for (VmbUint32_t i = 0; i < nsrcs; i++)                                                                    \
-        {                                                                                                          \
-            reply.push_back(srcs[i]);                                                                              \
-        }                                                                                                          \
-        allied_free_list((char ***)&srcs);                                                                         \
-        break;                                                                                                     \
+#define GET_CASE_LIST(NAME)                                                                                         \
+    case CommandNames::NAME:                                                                                        \
+    {                                                                                                               \
+        const char **srcs = nullptr;                                                                                \
+        VmbUint32_t nsrcs = 0;                                                                                      \
+        err = allied_get_##NAME(image_cam->handle, (char ***)&srcs, NULL, &nsrcs);                                  \
+        ZSYS_INFO("get (%s): " #NAME "-> %d (%s)", image_cam->get_info().idstr.c_str(), nsrcs, allied_strerr(err)); \
+        for (VmbUint32_t i = 0; i < nsrcs; i++)                                                                     \
+        {                                                                                                           \
+            reply.push_back(srcs[i]);                                                                               \
+        }                                                                                                           \
+        allied_free_list((char ***)&srcs);                                                                          \
+        break;                                                                                                      \
     }
