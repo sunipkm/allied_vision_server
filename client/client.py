@@ -2,8 +2,9 @@
 import sys
 from datetime import timedelta
 from backend import CameraConnection
+from backend import openAD2, GetDigitalData, DwfDigitalInTriggerType, DwfMaximizeBuffer
 # %%
-with CameraConnection() as cam_man:
+with CameraConnection() as cam_man, openAD2(buffer_maximize=DwfMaximizeBuffer.DigitalIn) as ad2:
     print(cam_man.cameras)
     if len(cam_man.cameras) == 0:
         sys.exit(0)
