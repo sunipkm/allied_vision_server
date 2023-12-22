@@ -50,7 +50,7 @@ all: clean $(GUITARGET)
 	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):alliedcam/lib ./$(GUITARGET)
 
 $(GUITARGET): alliedcam/liballiedcam.a rtd_adio/lib/librtd-aDIO.a
-	$(CXX) -o $@ server.cpp stringhasher.cpp $(CXXFLAGS) $(LIBS)
+	$(CXX) -o $@ src/server.cpp src/stringhasher.cpp $(CXXFLAGS) $(LIBS)
 
 alliedcam/liballiedcam.a:
 	@$(ECHO) -n "Building alliedcam..."
