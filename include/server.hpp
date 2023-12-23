@@ -87,7 +87,7 @@ namespace std
 #define SET_CASE_INT(NAME)                                                                                              \
     case CommandNames::NAME:                                                                                            \
     {                                                                                                                   \
-        VmbInt64_t arg = atol(argument);                                                                                \
+        VmbInt64_t arg = atoll(argument);                                                                                \
         err = allied_set_##NAME(image_cam->handle, arg);                                                                \
         ZSYS_INFO("set (%s): %s -> %ld", image_cam->get_info().idstr.c_str(), #NAME, arg);                              \
         err = allied_get_##NAME(image_cam->handle, &arg);                                                               \
