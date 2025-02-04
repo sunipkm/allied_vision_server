@@ -39,10 +39,11 @@ int main(int argc, char *argv[])
     int adio_minor_num = 0;
     int port = 5555;
     std::string camera_id = "";
+    char *cti_path = NULL;
     // Argument parsing
     {
         int c;
-        while ((c = getopt(argc, argv, "c:a:h")) != -1)
+        while ((c = getopt(argc, argv, "c:a:p:d:h")) != -1)
         {
             switch (c)
             {
@@ -67,6 +68,12 @@ int main(int argc, char *argv[])
                     ZSYS_ERROR("Invalid port number: %d", port);
                     exit(EXIT_FAILURE);
                 }
+                break;
+            }
+            case 'd':
+            {
+                ZSYS_INFO("CTI directory: %s\n", optarg);
+                cti_path = optarg;
                 break;
             }
             case 'h':
@@ -111,7 +118,7 @@ int main(int argc, char *argv[])
     std::map<uint32_t, CameraInfo> caminfos;
     std::map<uint32_t, ImageCam *> imagecams;
 
-    VmbError_t err = allied_init_api(NULL);
+    VmbError_t err = allied_init_api(cti_path);
     if (err != VmbErrorSuccess)
     {
         ZSYS_ERROR("Failed to initialize Allied Vision API: %s", allied_strerr(err));

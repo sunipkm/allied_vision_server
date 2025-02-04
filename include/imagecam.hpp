@@ -266,6 +266,12 @@ public:
         }
         delete triglines;
         delete trigsrcs;
+        err = allied_queue_capture(handle, &Callback, (void *)this);
+        if (err != VmbErrorSuccess)
+        {
+            dbprintlf("Could not queue capture: %s", allied_strerr(err));
+            return;
+        }
         opened = true;
         // std::cout << "Opened!" << std::endl;
     }
@@ -311,7 +317,7 @@ public:
         frames = 0;
         if (handle != nullptr && !capturing)
         {
-            err = allied_start_capture(handle, &Callback, (void *)this); // set the callback here
+            err = allied_start_capture(handle); // set the callback here
         }
         if (err == VmbErrorSuccess)
         {
